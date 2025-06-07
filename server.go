@@ -48,13 +48,8 @@ func (s *Server) Handler(conn net.Conn) {
 	// ...链接当前的业务
 	fmt.Println("Client connected:", conn.RemoteAddr().String())
 	// 创建一个User对象
-	user := NewUser(conn)
-	// 将用户添加到在线用户列表
-	s.mapLock.Lock() // Lock the map for safe access
-	s.OnlineMap[user.Name] = user
-	s.mapLock.Unlock() // Unlock the map after adding the user
-
-	s.Broadcast(user, "已经上线")
+	user := NewUser(conn, s)
+	user.Online()
 
 	// 接受客户端消息
 	go func() {
@@ -62,14 +57,11 @@ func (s *Server) Handler(conn net.Conn) {
 			buf := make([]byte, 4096) // Create a buffer to read data
 			n, err := conn.Read(buf)  // Read data from the connection
 			if n == 0 || err != nil {
-				s.mapLock.Lock()               // Lock the map for safe access
-				delete(s.OnlineMap, user.Name) // Remove the user from the online map
-				s.mapLock.Unlock()             // Unlock the map after removing the user
-				s.Broadcast(user, user.Name+" 已经下线")
+				user.Offline()
 				return
 			}
 			msg := string(buf[:n-1]) // Convert bytes to string
-			s.Broadcast(user, msg)   // Broadcast the message
+			user.DoMessage(msg)
 		}
 	}()
 }

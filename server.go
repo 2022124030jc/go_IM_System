@@ -40,14 +40,8 @@ func (s *Server) ListenMessage() {
 }
 
 func (s *Server) Broadcast(user *User, msg string) {
-	// Broadcast a message to all users
-	s.mapLock.Lock() // Lock the map for safe access
-	for _, u := range s.OnlineMap {
-		if u.Name != user.Name { // Don't send the message back to the sender
-			u.C <- msg // Send the message to the user
-		}
-	}
-	s.mapLock.Unlock() // Unlock the map after broadcasting
+	msg = user.Name + ": " + msg + "\n" // Format the message with the user's name
+	s.Message <- msg                    // Send the message to the channel for broadcasting
 }
 
 func (s *Server) Handler(conn net.Conn) {
@@ -60,6 +54,24 @@ func (s *Server) Handler(conn net.Conn) {
 	s.OnlineMap[user.Name] = user
 	s.mapLock.Unlock() // Unlock the map after adding the user
 
+	s.Broadcast(user, "已经上线")
+
+	// 接受客户端消息
+	go func() {
+		for {
+			buf := make([]byte, 4096) // Create a buffer to read data
+			n, err := conn.Read(buf)  // Read data from the connection
+			if n == 0 || err != nil {
+				s.mapLock.Lock()               // Lock the map for safe access
+				delete(s.OnlineMap, user.Name) // Remove the user from the online map
+				s.mapLock.Unlock()             // Unlock the map after removing the user
+				s.Broadcast(user, user.Name+" 已经下线")
+				return
+			}
+			msg := string(buf[:n-1]) // Convert bytes to string
+			s.Broadcast(user, msg)   // Broadcast the message
+		}
+	}()
 }
 
 func (s *Server) Start() {

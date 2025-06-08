@@ -76,7 +76,7 @@ func (s *Server) Handler(conn net.Conn) {
 		select {
 		case <-isLive: // 如果用户活跃，重置isLive
 			continue
-		case <-time.After(10 * time.Second): // 如果连接关闭，退出循环
+		case <-time.After(30 * time.Second): // 如果连接关闭，退出循环
 			user.Offline()
 			return
 		}

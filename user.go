@@ -2,6 +2,7 @@ package main
 
 import (
 	"net"
+	"strings"
 	"sync"
 )
 
@@ -106,6 +107,29 @@ func (this *User) DoMessage(msg string) {
 			// 通知其他用户
 			this.server.Broadcast(this, "已将用户名改为："+this.Name)
 		}
+	} else if len(msg) > 3 && msg[:3] == "to|" { // 私聊消息格式：to|用户名|消息内容
+		// 解析消息
+		parts := strings.SplitN(msg[3:], "|", 2)
+		if len(parts) < 2 {
+			this.SendMsg("私聊格式错误，正确格式：to|用户名|消息内容\n")
+			return
+		}
+		targetName := parts[0]
+		privateMsg := parts[1]
+
+		// 查找目标用户
+		this.server.mapLock.Lock()
+		targetUser, ok := this.server.OnlineMap[targetName]
+		this.server.mapLock.Unlock()
+
+		if !ok {
+			this.SendMsg("用户 " + targetName + " 不在线或不存在\n")
+			return
+		}
+
+		// 使用SendMsg方法发送私聊消息
+		targetUser.SendMsg("[" + this.Name + "]私聊你: " + privateMsg + "\n")
+		this.SendMsg("私聊消息已成功发送给 " + targetName + "\n")
 	} else {
 		// 否则，将消息广播给其他用户
 		this.server.Broadcast(this, msg)

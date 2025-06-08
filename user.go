@@ -1,12 +1,17 @@
 package main
 
-import "net"
+import (
+	"net"
+	"sync"
+)
 
 type User struct {
-	Name string
-	Addr string
-	C    chan string
-	conn net.Conn
+	Name     string
+	Addr     string
+	C        chan string
+	conn     net.Conn
+	isClosed bool
+	mu       sync.Mutex
 
 	server *Server // 关联Server对象
 }
@@ -40,12 +45,22 @@ func (this *User) Online() {
 
 // 用户下线业务
 func (this *User) Offline() {
+	this.mu.Lock()
+	defer this.mu.Unlock()
+
+	if this.isClosed {
+		return
+	}
+
 	// 将用户从在线用户列表中删除
-	this.server.mapLock.Lock() // Lock the map for safe access
+	this.server.mapLock.Lock()
 	delete(this.server.OnlineMap, this.Name)
-	this.server.mapLock.Unlock() // Unlock the map after removing the user
+	this.server.mapLock.Unlock()
 
 	this.server.Broadcast(this, "已经下线")
+	close(this.C)
+	this.conn.Close()
+	this.isClosed = true
 }
 
 // 给当前用户发消息

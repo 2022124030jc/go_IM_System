@@ -48,16 +48,34 @@ func (this *User) Offline() {
 	this.server.Broadcast(this, "已经下线")
 }
 
+// 给当前用户发消息
+func (this *User) SendMsg(msg string) {
+	if _, err := this.conn.Write([]byte(msg)); err != nil {
+		// 如果发送失败，可能是用户已经下线
+		this.Offline()
+	}
+}
+
 // 用户处理消息业务
 func (this *User) DoMessage(msg string) {
 	// 如果消息是"exit"，则下线
 	if msg == "exit" {
 		this.Offline()
 		return
-	}
+	} else if msg == "who" {
+		// 如果消息是"who"，则返回在线用户列表
+		this.server.mapLock.Lock()
 
-	// 否则，将消息广播给其他用户
-	this.server.Broadcast(this, msg)
+		for _, user := range this.server.OnlineMap {
+			// 将在线用户的名称发送给当前用户
+			this.SendMsg("[" + user.Addr + "] :" + user.Name + "已上线\n")
+		}
+
+		this.server.mapLock.Unlock()
+	} else {
+		// 否则，将消息广播给其他用户
+		this.server.Broadcast(this, msg)
+	}
 }
 
 // 监听当前User的消息
